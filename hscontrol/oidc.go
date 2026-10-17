@@ -881,6 +881,10 @@ func (a *AuthProviderOIDC) RegisterConfirmGetHandler(
 		info.Hostname = regData.Hostname
 		info.MachineKey = regData.MachineKey.ShortString()
 
+		if node, ok := a.h.state.LoginNode(regData.MachineKey, types.UserID(user.ID)); ok {
+			info.ExistingNode = node.GivenName()
+		}
+
 		if regData.Hostinfo != nil {
 			info.OS = regData.Hostinfo.OS
 		}
@@ -985,7 +989,12 @@ func (a *AuthProviderOIDC) RegisterConfirmHandler(
 
 		content = renderAuthSuccessTemplate(user)
 	} else {
-		newNode, err := a.handleRegistration(user, authID, pending.NodeExpiry)
+		_, reauth := a.h.state.LoginNode(
+			authReq.RegistrationData().MachineKey,
+			types.UserID(user.ID),
+		)
+
+		node, err := a.handleRegistration(user, authID, pending.NodeExpiry)
 		if err != nil {
 			if errors.Is(err, db.ErrNodeNotFoundRegistrationCache) {
 				httpUserError(writer, newHTTPUserError(
@@ -1003,7 +1012,7 @@ func (a *AuthProviderOIDC) RegisterConfirmHandler(
 			return
 		}
 
-		content = renderRegistrationSuccessTemplate(user, newNode)
+		content = renderRegistrationSuccessTemplate(user, node, reauth)
 	}
 
 	// Clear the CSRF cookie now that the request is final.
@@ -1024,8 +1033,8 @@ func (a *AuthProviderOIDC) handleRegistration(
 	user *types.User,
 	registrationID types.AuthID,
 	expiry *time.Time,
-) (bool, error) {
-	_, nodeChange, err := a.h.state.HandleNodeFromAuthPath(
+) (types.NodeView, error) {
+	node, nodeChange, err := a.h.state.HandleNodeFromAuthPath(
 		registrationID,
 		types.UserID(user.ID),
 		expiry,
@@ -1035,19 +1044,20 @@ func (a *AuthProviderOIDC) handleRegistration(
 
 	if err != nil {
 		if errors.Is(err, types.ErrHostinfoTooLarge) {
-			return false, newHTTPUserError(http.StatusBadRequest, "node report too large",
+			return types.NodeView{}, newHTTPUserError(http.StatusBadRequest, "node report too large",
 				"This device reports too much data. Ask your administrator to reduce its reported metadata, then sign in again.", err)
 		}
 
-		return false, fmt.Errorf("registering node: %w", err)
+		return types.NodeView{}, fmt.Errorf("registering node: %w", err)
 	}
 
-	return !nodeChange.IsEmpty(), nil
+	return node, nil
 }
 
 func renderRegistrationSuccessTemplate(
 	user *types.User,
-	newNode bool,
+	_ types.NodeView,
+	reauth bool,
 ) *bytes.Buffer {
 	result := templates.AuthSuccessResult{
 		Title:   "Headscale - Node Reauthenticated",
@@ -1056,7 +1066,7 @@ func renderRegistrationSuccessTemplate(
 		User:    user.Display(),
 		Message: "You can now close this window.",
 	}
-	if newNode {
+	if !reauth {
 		result.Title = "Headscale - Node Registered"
 		result.Heading = "Node registered"
 		result.Verb = "Registered"
