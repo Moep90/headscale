@@ -83,7 +83,7 @@ require (
 	// go get modernc.org/libc@v1.55.3 modernc.org/sqlite@v1.33.1
 	modernc.org/sqlite v1.61.0
 	pgregory.net/rapid v1.3.0
-	tailscale.com v1.105.0-pre.0.20261028221719-f7c1b8e52600
+	tailscale.com v1.105.0-pre.0.20261029224308-5a05ac11d5dd
 	tailscale.com/client/tailscale/v2 v2.12.0
 	zombiezen.com/go/postgrestest v1.0.1
 )
@@ -224,7 +224,7 @@ require (
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/setec v0.0.0-20260824224040-f8d7a936837c // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20260917222731-e0ed2d0d0fea // indirect
-	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393 // indirect
+	github.com/tailscale/wireguard-go v0.0.0-20261028173945-db3888e688e9 // indirect
 	github.com/toqueteos/webbrowser v1.2.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
@@ -243,7 +243,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	golang.org/x/image v0.46.0 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
