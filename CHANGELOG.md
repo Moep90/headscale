@@ -157,6 +157,7 @@ the ACME DNS-01 challenge through a built-in DNS provider: `acmedns`,
 - Shutdown keeps the LastSeen of connected nodes: it waits for their map sessions to close before closing the database [#3575](https://github.com/juanfont/headscale/pull/3575)
 - Deleting an ephemeral node no longer logs a spurious `ephemeral node deletion failed` error later [#3575](https://github.com/juanfont/headscale/pull/3575)
 - Add the v2 `acl/validate` endpoint, which Terraform provider 0.29.3 and newer call to check `tailscale_acl` at plan time; before it, those releases failed with `invalid character 'p' after top-level value`
+- A node that re-registers under a new hostname now gets a matching MagicDNS name, unless an admin renamed it [#3432](https://github.com/juanfont/headscale/issues/3432)
 
 ## 0.29.7 (202x-xx-xx)
 

@@ -1792,3 +1792,78 @@ func TestReauthReplacesReportedTags(t *testing.T) {
 		assert.Equal(t, want, row.Hostinfo.RequestTags)
 	}
 }
+
+// TestReauthResyncsGivenName covers #3432: both re-registration paths store
+// the new Hostname, so the hostname-change resync in UpdateNodeFromMapRequest
+// never fires afterwards and the node kept its old GivenName (MagicDNS label)
+// forever. An admin-set GivenName must survive both paths.
+func TestReauthResyncsGivenName(t *testing.T) {
+	dbPath := t.TempDir() + "/headscale.db"
+	cfg := persistTestConfig(dbPath)
+
+	database, err := db.NewHeadscaleDatabase(cfg)
+	require.NoError(t, err)
+
+	user := database.CreateUserForTest("givenname-user")
+	machineKey := database.CreateRegisteredNodeForTest(user, "old-host").MachineKey
+	pakMachineKey := database.CreateRegisteredNodeForTest(user, "old-pak-host").MachineKey
+
+	require.NoError(t, database.Close())
+
+	s, err := NewState(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+
+	clientExpiry := time.Now().Add(24 * time.Hour)
+
+	webReauth := func(hostname string) types.NodeView {
+		t.Helper()
+
+		id := types.MustAuthID()
+		require.NoError(t, s.SetAuthCacheEntry(id, types.NewRegisterAuthRequest(&types.RegistrationData{
+			MachineKey: machineKey,
+			NodeKey:    key.NewNode().Public(),
+			Hostname:   hostname,
+			Hostinfo:   &tailcfg.Hostinfo{Hostname: hostname},
+			Expiry:     &clientExpiry,
+		})))
+
+		node, _, err := s.HandleNodeFromAuthPath(id, types.UserID(user.ID), nil, "webauth")
+		require.NoError(t, err)
+		require.Equal(t, hostname, node.Hostname())
+
+		return node
+	}
+
+	pakReauth := func(mkey key.MachinePublic, hostname string) types.NodeView {
+		t.Helper()
+
+		pak, err := s.CreatePreAuthKey(user.TypedID(), true, false, nil, nil)
+		require.NoError(t, err)
+
+		node, _, err := s.HandleNodeFromPreAuthKey(tailcfg.RegisterRequest{
+			Auth:     &tailcfg.RegisterResponseAuth{AuthKey: pak.Key},
+			NodeKey:  key.NewNode().Public(),
+			Expiry:   clientExpiry,
+			Hostinfo: &tailcfg.Hostinfo{Hostname: hostname},
+		}, mkey)
+		require.NoError(t, err)
+		require.Equal(t, hostname, node.Hostname())
+
+		return node
+	}
+
+	node := webReauth("new-host")
+	require.Equal(t, "new-host", node.GivenName(), "web re-auth must resync an auto-derived GivenName")
+
+	_, err = s.nodeStore.SetGivenName(node.ID(), "custom-label")
+	require.NoError(t, err)
+
+	require.Equal(t, "custom-label", webReauth("another-host").GivenName(),
+		"web re-auth must keep an admin-set GivenName")
+	require.Equal(t, "custom-label", pakReauth(machineKey, "yet-another-host").GivenName(),
+		"pre-auth key re-registration must keep an admin-set GivenName")
+
+	require.Equal(t, "pak-host", pakReauth(pakMachineKey, "pak-host").GivenName(),
+		"pre-auth key re-registration must resync an auto-derived GivenName")
+}
