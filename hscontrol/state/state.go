@@ -1755,6 +1755,7 @@ func (s *State) applyAuthNodeUpdate(params authNodeUpdateParams) (types.NodeView
 	before, updatedNodeView, ok := s.nodeStore.UpdateNodeDiff(params.ExistingNode.ID(), func(node *types.Node) {
 		node.NodeKey = regData.NodeKey
 		node.DiscoKey = regData.DiscoKey
+		resyncGivenName(node, params.Hostname)
 		node.Hostname = params.Hostname
 
 		// Preserve NetInfo from existing node when re-registering
@@ -2622,6 +2623,7 @@ func (s *State) HandleNodeFromPreAuthKey(
 		// Update existing node - NodeStore first, then database
 		before, updatedNodeView, ok := s.nodeStore.UpdateNodeDiff(existingNodeSameUser.ID(), func(node *types.Node) {
 			node.NodeKey = regReq.NodeKey
+			resyncGivenName(node, hostname)
 			node.Hostname = hostname
 
 			// TODO(kradalby): We should ensure we use the same hostinfo and node merge semantics
@@ -3040,6 +3042,18 @@ func (s *State) autoApproveNodes() ([]change.Change, error) {
 	}
 
 	return []change.Change{c}, nil
+}
+
+// resyncGivenName re-derives an auto-derived GivenName from newHostname
+// before a re-registration overwrites node.Hostname. It mirrors the
+// hostname-change block in UpdateNodeFromMapRequest, which never fires
+// after re-registration because Hostname is already the new value by then.
+func resyncGivenName(node *types.Node, newHostname string) {
+	if newHostname != "" && newHostname != node.Hostname &&
+		isAutoDerivedGivenName(node.GivenName, node.Hostname) {
+		node.GivenName = dnsname.SanitizeHostname(newHostname)
+		// [NodeStore.UpdateNode] auto-bumps GivenName on collision.
+	}
 }
 
 // isAutoDerivedGivenName reports whether given matches what
